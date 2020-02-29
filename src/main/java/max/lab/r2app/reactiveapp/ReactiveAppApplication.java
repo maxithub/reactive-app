@@ -15,7 +15,7 @@ public class ReactiveAppApplication {
 		SpringApplication.run(ReactiveAppApplication.class, args);
 	}
 
-	@Bean
+//	@Bean
 	public CommandLineRunner commandLineRunner(AppUserRepository repository) {
 		return (args -> repository.deleteAll().subscribe((v) -> log.info("Deleted all appusers")));
 	}

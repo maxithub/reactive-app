@@ -1,5 +1,6 @@
 package max.lab.r2app.reactiveapp.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import max.lab.r2app.reactiveapp.domain.AppUser;
@@ -12,9 +13,7 @@ import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 
-import static max.lab.r2app.reactiveapp.controller.ControllerHelper.handleException;
-import static max.lab.r2app.reactiveapp.controller.ControllerHelper.validate;
-import static max.lab.r2app.reactiveapp.controller.ControllerHelper.validateAsync;
+import static max.lab.r2app.reactiveapp.controller.ControllerHelper.*;
 import static org.springframework.web.reactive.function.server.RouterFunctions.route;
 import static org.springframework.web.reactive.function.server.ServerResponse.notFound;
 import static org.springframework.web.reactive.function.server.ServerResponse.ok;
@@ -25,13 +24,14 @@ import static org.springframework.web.reactive.function.server.ServerResponse.ok
 public class AppUserController {
     private final AppUserRepository appUserRepo;
     private final Validator validator;
+    private final ObjectMapper objectMapper;
 
     @Bean
     public RouterFunction<ServerResponse> routes() {
         return route()
                 .POST("/appuser", this::create)
                 .PUT("/appuser/{id}", this::update)
-                .GET("/appusers", this::findAll)
+                .GET("/appusers", this::findMany)
                 .GET("/appuser/{id}", this::findOne)
                 .build();
     }
@@ -49,14 +49,26 @@ public class AppUserController {
         return appUserRepo.findById(id)
                 .then(request.bodyToMono(AppUser.class))
                 .doOnNext(appUser -> validate(validator, appUser))
-                .flatMap(appUserRepo::save)
+                .flatMap(appUserRepo::update)
                 .then(ok().build())
                 .switchIfEmpty(notFound().build())
                 .onErrorResume(t -> handleException(t, log, "Failed to update AppUser"));
     }
 
-    private Mono<ServerResponse> findAll(ServerRequest request) {
-        return ok().body(appUserRepo.findAll(), AppUser.class)
+    private Mono<ServerResponse> findMany(ServerRequest request) {
+        return queryParamsToMono(request, objectMapper, PageHolder.class, validator)
+                .flatMap(page -> ok()
+                        .body(appUserRepo.find(
+                                request.queryParam("province"),
+                                request.queryParam("city"),
+                                request.queryParam("age").map(s -> {
+                                    Integer i = null;
+                                    try {
+                                        i = Integer.valueOf(s);
+                                    } catch (Exception e) { }
+                                    return i;
+                                }),
+                                page.toPageable()), AppUser.class))
                 .onErrorResume(t -> handleException(t, log, "Failed to find AppUsers"));
     }
 
@@ -70,7 +82,7 @@ public class AppUserController {
                             }
                         }).then(Mono.just(errors));
                     }, appUser))
-                .flatMap(appUserRepo::save)
+                .flatMap(appUserRepo::insert)
                 .then(ok().build())
                 .onErrorResume(t -> handleException(t, log, "Failed to create AppUser"));
     }

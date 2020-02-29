@@ -11,3 +11,5 @@ create table app_user (
   city varchar (200),
   primary key (id)
 );
+
+create index idx_app_user on app_user (province, city, age);
