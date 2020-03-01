@@ -12,4 +12,6 @@ create table app_user (
   primary key (id)
 );
 
+-- drop index idx_app_user ;
+
 create index idx_app_user on app_user (province, city, age);
